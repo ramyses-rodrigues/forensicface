@@ -14,8 +14,6 @@ from glob import glob
 from imutils import build_montages
 from insightface.app import FaceAnalysis
 from insightface.utils import face_align
-<<<<<<< HEAD
-=======
 from tqdm import tqdm
 import warnings
 from .utils import freeze_env, transform_keypoints, annotate_img_with_kps
@@ -27,7 +25,6 @@ def custom_formatwarning(message, category, filename, lineno, line=None):
 
 
 warnings.formatwarning = custom_formatwarning
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
 
 # %% ../nbs/00_forensicface.ipynb 3
 class ForensicFace:
@@ -56,11 +53,7 @@ class ForensicFace:
         - det_size (int): The size of the input images for face detection (default: 320).
         - use_gpu (bool): Whether to use a GPU for inference (default: True).
         - gpu (int): The ID of the GPU to use (default: 0).
-<<<<<<< HEAD
-        - magface (bool): Whether to use MagFace for face recognition (default: False).
-=======
         - concat_embeddings (bool): If True, concatenates the embeddings of each model.
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
         - extended (bool): Whether to use extended modules (detection, landmark_3d_68, genderage) (default: True).
         """
 
@@ -97,13 +90,6 @@ class ForensicFace:
         else:
             allowed_modules = ["detection"]
 
-<<<<<<< HEAD
-        self.det_size = (det_size, det_size)
-
-        self.model = model
-
-=======
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
         self.detectmodel = FaceAnalysis(
             name=self.models[0],
             allowed_modules=allowed_modules,
@@ -123,14 +109,6 @@ class ForensicFace:
                 osp.expanduser("~/.insightface/models"), model_name, "*", "*face*.onnx"
             )
         )
-<<<<<<< HEAD
-        assert len(onnx_rec_model) == 1
-        self.ort_ada = onnxruntime.InferenceSession(
-            onnx_rec_model[0],
-            providers=[("CUDAExecutionProvider", {"device_id": gpu})]
-            if use_gpu
-            else ["CPUExecutionProvider"],
-=======
         assert len(model_path) == 1, f"More than one ONNX model found in {model_path}"
         return onnxruntime.InferenceSession(
             model_path[0],
@@ -139,7 +117,6 @@ class ForensicFace:
                 if use_gpu
                 else ["CPUExecutionProvider"]
             ),
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
         )
 
     def _to_input_ada(self, aligned_bgr_img):
@@ -251,120 +228,6 @@ class ForensicFace:
 
                 - 'roll': A float representing the roll angle for each face in the image.
 
-<<<<<<< HEAD
-                If the 'magface' attribute is set to True, the dictionary will also contain the following keys:
-                - 'magface_embedding': A 1D numpy array of shape (512,) containing the magface
-                                          embedding for each face in the image.
-
-                - 'magface_norm': A float representing the L2 norm of the magface embedding for
-                                     each face in the image.
-        """
-        if type(imgpath) == str:  # image path passed as argument
-            bgr_img = cv2.imread(imgpath)
-        else:  # image array passed as argument
-            bgr_img = imgpath.copy()
-        faces = self.detectmodel.get(bgr_img)
-        if len(faces) == 0:
-            return {}
-
-        idx, kps = self.get_larger_face(bgr_img, faces)
-
-        bbox = faces[idx].bbox.astype("int")
-        bgr_aligned_face = face_align.norm_crop(bgr_img, kps)
-        ipd = np.linalg.norm(kps[0] - kps[1])
-
-        ada_inputs = {
-            self.ort_ada.get_inputs()[0].name: self._to_input_ada(bgr_aligned_face)
-        }
-        normalized_embedding, norm = self.ort_ada.run(None, ada_inputs)
-
-        ret = {
-            "keypoints": kps,
-            "ipd": ipd,
-            "embedding": normalized_embedding.flatten() * norm.flatten()[0],
-            "norm": norm.flatten()[0],
-            "bbox": bbox,
-            "aligned_face": cv2.cvtColor(bgr_aligned_face, cv2.COLOR_BGR2RGB),
-        }
-
-        if self.extended:
-            gender = "M" if faces[idx].gender == 1 else "F"
-            age = faces[idx].age
-            pitch, yaw, roll = faces[idx].pose
-            _, fiqa_score = self.ort_fiqa.run(None, ada_inputs)
-            ret = {
-                **ret,
-                **{
-                    "gender": gender,
-                    "age": age,
-                    "pitch": pitch,
-                    "yaw": yaw,
-                    "roll": roll,
-                    "fiqa_score": fiqa_score[0][0],
-                },
-            }
-
-        return ret
-
-    def process_image(self, imgpath):
-        return self.process_image_single_face(imgpath)
-
-    def process_image_multiple_faces(
-        self,
-        imgpath: str,  # Path to image to be processed
-    ):
-        """
-        Process an image with one or multiple faces and returns a list of dictionaries
-        with the following keys:
-
-            - 'keypoints': A 2D numpy array of shape (5, 2) containing the facial keypoints
-                            for each face in the image. The keypoints are ordered as follows:
-                            left eye, right eye, nose tip, left mouth corner, and right mouth corner.
-
-            - 'ipd': A float representing the inter-pupillary distance for each face in the image.
-
-            - 'embedding': A 1D numpy array of shape (512,) containing the facial embedding
-                            for each face in the image.
-
-            - 'norm': A float representing the L2 norm of the embedding for each face in the image.
-
-            - 'bbox': A 1D numpy array of shape (4,) containing the bounding box coordinates for each face
-                        in the image. The coordinates are ordered as follows: (xmin, ymin, xmax, ymax).
-
-            - 'aligned_face': A numpy array of shape (112, 112, 3) in RGB order containing the aligned face image for
-                                each face in the image. The image has been cropped and aligned based on the
-                                facial keypoints.
-
-         If the 'extended' attribute is set to True, the dictionaries will also contain the following keys:
-            - 'gender': A string representing the sex for each face in the image.
-                        Possible values are 'M' for male and 'F' for female.
-
-            - 'age': An integer representing the estimated age for each face in the image.
-
-            - 'pitch': A float representing the pitch angle for each face in the image.
-
-            - 'yaw': A float representing the yaw angle for each face in the image.
-
-            - 'roll: A float representing the roll angle for each face in the image.
-
-         If the 'magface' attribute is set to True, the dictionary will also contain the following keys:
-            - 'magface_embedding': A 1D numpy array of shape (512,) containing the magface
-                                    embedding for each face in the image.
-
-            - 'magface_norm': A float representing the L2 norm of the magface embedding for
-                                each face in the image.
-
-        Args:
-            - imgpath (str): The file path to the image to be processed.
-
-        Returns:
-            - A list of dictionaries, with each dictionary representing a face in the image.
-        """
-        if type(imgpath) == str:  # image path passed as argument
-            bgr_img = cv2.imread(imgpath)
-        else:  # image array passed as argument
-            bgr_img = imgpath.copy()
-=======
                 - fiqa_score: A float indicating facial image quality.
         """
         if single_face == True:
@@ -374,7 +237,6 @@ class ForensicFace:
                 FutureWarning,
             )
         bgr_img = self._load_image(imgpath)
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
         faces = self.detectmodel.get(bgr_img)
         if len(faces) == 0:
             return []
@@ -386,24 +248,6 @@ class ForensicFace:
 
         results = []
         for face in faces:
-<<<<<<< HEAD
-            kps = face.kps
-            bbox = face.bbox.astype("int")
-            bgr_aligned_face = face_align.norm_crop(bgr_img, kps)
-            ipd = np.linalg.norm(kps[0] - kps[1])
-            ada_inputs = {
-                self.ort_ada.get_inputs()[0].name: self._to_input_ada(bgr_aligned_face)
-            }
-            normalized_embedding, norm = self.ort_ada.run(None, ada_inputs)
-            face_ret = {
-                "keypoints": kps,
-                "ipd": ipd,
-                "embedding": normalized_embedding.flatten() * norm.flatten()[0],
-                "norm": norm.flatten()[0],
-                "bbox": bbox,
-                "aligned_face": cv2.cvtColor(bgr_aligned_face, cv2.COLOR_BGR2RGB),
-            }
-=======
             bgr_aligned_face = face_align.norm_crop(bgr_img, face.kps)
             embeddings, fiqa_score = self._compute_embeddings(bgr_aligned_face)
             if draw_keypoints:
@@ -414,7 +258,6 @@ class ForensicFace:
                 face, bgr_aligned_face, embeddings, fiqa_score
             )
             results.append(result)
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
 
         return results if not single_face else results[0]
 
@@ -535,10 +378,6 @@ class ForensicFace:
         right = left
 
         imgs = []
-<<<<<<< HEAD
-        for img_path in img_path_list:
-            ret = self.process_image_single_face(img_path)
-=======
         list_of_arrays = False
         for img in img_path_list:
             if type(img) != str:  # image array passed as argument
@@ -546,7 +385,6 @@ class ForensicFace:
             ret = self.process_image(
                 img, draw_keypoints=draw_keypoints, single_face=True
             )
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
             if len(ret) > 0:
                 img = cv2.cvtColor(ret["aligned_face"], cv2.COLOR_RGB2BGR)
                 img = cv2.copyMakeBorder(
@@ -567,23 +405,16 @@ class ForensicFace:
             ),
             montage_shape=mosaic_shape,
         )[0]
-<<<<<<< HEAD
-=======
         if list_of_arrays:
             warnings.warn(
                 "A list of arrays was passed as argument. Make sure image arrays are in BGR format.",
                 Warning,
             )
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
         if save_to is not None:
             cv2.imwrite(save_to, mosaic)
         return mosaic
 
-<<<<<<< HEAD
-# %% ../nbs/00_forensicface.ipynb 8
-=======
 # %% ../nbs/00_forensicface.ipynb 17
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
 @patch
 def compare(self: ForensicFace, img1path: str, img2path: str):
     """
@@ -607,11 +438,7 @@ def compare(self: ForensicFace, img1path: str, img2path: str):
         np.linalg.norm(img1data["embedding"]) * np.linalg.norm(img2data["embedding"])
     )
 
-<<<<<<< HEAD
-# %% ../nbs/00_forensicface.ipynb 11
-=======
 # %% ../nbs/00_forensicface.ipynb 20
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
 @patch
 def aggregate_embeddings(self: ForensicFace, embeddings, weights=None, method="mean"):
     """
@@ -639,11 +466,7 @@ def aggregate_embeddings(self: ForensicFace, embeddings, weights=None, method="m
         weighted_embeddings = np.array([w * e for w, e in zip(weights, embeddings)])
         return np.median(weighted_embeddings, axis=0)
 
-<<<<<<< HEAD
-# %% ../nbs/00_forensicface.ipynb 12
-=======
 # %% ../nbs/00_forensicface.ipynb 21
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
 @patch
 def aggregate_from_images(
     self: ForensicFace, list_of_image_paths, method="mean", quality_weight=False
@@ -680,11 +503,7 @@ def aggregate_from_images(
     else:
         return []
 
-<<<<<<< HEAD
-# %% ../nbs/00_forensicface.ipynb 16
-=======
 # %% ../nbs/00_forensicface.ipynb 25
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
 @patch
 def _get_extended_bbox(self: ForensicFace, bbox, frame_shape, margin_factor):
     """
@@ -760,10 +579,6 @@ def extract_faces(
     vs.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     current_frame = start_frame
     nfaces = 0
-<<<<<<< HEAD
-    while True:
-        if (current_frame % every_n_frames) != 0:
-=======
     if export_metadata:
         metadata = []
     with tqdm(
@@ -777,35 +592,12 @@ def extract_faces(
             if not ret:
                 break
 
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
             current_frame = current_frame + 1
             continue
 
         vs.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
         ret, frame = vs.read()
 
-<<<<<<< HEAD
-        if not ret:
-            break
-        current_frame = current_frame + 1
-        (h, w) = frame.shape[:2]
-
-        faces = self.detectmodel.get(frame)
-        for i, face in enumerate(faces):
-            startX, startY, endX, endY = face.bbox.astype("int")
-            faceW = endX - startX
-            faceH = endY - startY
-            outBbox = self._get_extended_bbox(
-                face.bbox, frame.shape, margin_factor=margin
-            )
-            # export the face (with added margin)
-            face_crop = frame[outBbox[1] : outBbox[3], outBbox[0] : outBbox[2]]
-            face_img_path = os.path.join(
-                dest_folder, f"frame_{current_frame:07}_face_{i:02}.png"
-            )
-            cv2.imwrite(face_img_path, face_crop)
-            nfaces += 1
-=======
             # faces = self.detectmodel.get(frame)
             rets = self.process_image(frame, single_face=False)
             for i, ret in enumerate(rets):
@@ -834,7 +626,6 @@ def extract_faces(
                     )
                 nfaces += 1
             pbar.update(1)
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
     vs.release()
     if export_metadata:
         pd.DataFrame(metadata).to_json(
@@ -846,8 +637,6 @@ def extract_faces(
             orient="records",
         )
     return nfaces
-<<<<<<< HEAD
-=======
 
 # %% ../nbs/00_forensicface.ipynb 29
 @patch
@@ -865,4 +654,3 @@ def process_aligned_face_image(self: ForensicFace, rgb_aligned_face: np.ndarray)
     if self.extended:
         ret = {**ret, **{"fiqa_score": fiqa_score}}
     return ret
->>>>>>> bd56e96cfeed4f6360ce359661e4d3eb7e50d52e
