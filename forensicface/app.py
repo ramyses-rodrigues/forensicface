@@ -598,34 +598,35 @@ def extract_faces(
         vs.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
         ret, frame = vs.read()
 
-            # faces = self.detectmodel.get(frame)
-            rets = self.process_image(frame, single_face=False)
-            for i, ret in enumerate(rets):
-                startX, startY, endX, endY = ret["bbox"]
-                faceW = endX - startX
-                faceH = endY - startY
-                outBbox = self._get_extended_bbox(
-                    ret["bbox"], frame.shape, margin_factor=margin
+        # faces = self.detectmodel.get(frame)
+        rets = self.process_image(frame, single_face=False)
+        for i, ret in enumerate(rets):
+            startX, startY, endX, endY = ret["bbox"]
+            faceW = endX - startX
+            faceH = endY - startY
+            outBbox = self._get_extended_bbox(
+                ret["bbox"], frame.shape, margin_factor=margin
+            )
+            # export the face (with added margin)
+            face_crop = frame[outBbox[1] : outBbox[3], outBbox[0] : outBbox[2]]
+            face_img_path = os.path.join(
+                dest_folder, f"frame_{current_frame:07}_face_{i:02}.png"
+            )
+            cv2.imwrite(face_img_path, face_crop)
+            if export_metadata:
+                metadata.append(
+                    {
+                        **{"frame": current_frame, "face": i},
+                        **{
+                            k: v
+                            for k, v in ret.items()
+                            if k not in ["det_score", "aligned_face"]
+                        },
+                    }
                 )
-                # export the face (with added margin)
-                face_crop = frame[outBbox[1] : outBbox[3], outBbox[0] : outBbox[2]]
-                face_img_path = os.path.join(
-                    dest_folder, f"frame_{current_frame:07}_face_{i:02}.png"
-                )
-                cv2.imwrite(face_img_path, face_crop)
-                if export_metadata:
-                    metadata.append(
-                        {
-                            **{"frame": current_frame, "face": i},
-                            **{
-                                k: v
-                                for k, v in ret.items()
-                                if k not in ["det_score", "aligned_face"]
-                            },
-                        }
-                    )
-                nfaces += 1
-            pbar.update(1)
+            nfaces += 1
+        pbar.update(1)
+        
     vs.release()
     if export_metadata:
         pd.DataFrame(metadata).to_json(
