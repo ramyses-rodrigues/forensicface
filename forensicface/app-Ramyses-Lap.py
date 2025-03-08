@@ -71,7 +71,7 @@ class ForensicFace:
         ]
 
         self.det_size = (det_size, det_size)
-        # self.det_thresh = det_thresh
+        self.det_thresh = det_thresh
         self.extended = extended
         if self.extended:
             allowed_modules = ["detection", "landmark_3d_68", "genderage"]
@@ -574,7 +574,6 @@ def extract_faces(
     vs = cv2.VideoCapture(video_path)
     fps = vs.get(cv2.CAP_PROP_FPS)
     start_frame = int(fps * start_from)
-    total_frames = vs.get(cv2.CAP_PROP_FRAME_COUNT)
 
     # seek to starting frame
     vs.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
